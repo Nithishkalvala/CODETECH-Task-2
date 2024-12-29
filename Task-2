@@ -1,0 +1,80 @@
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.metrics import silhouette_score, davies_bouldin_score
+from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
+import matplotlib.pyplot as plt
+import seaborn as sns 
+data = {
+    "Book_ID": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    "Genre": ["Fiction", "Non-Fiction", "Fantasy", "Mystery", "Romance", "Fiction", 
+              "Fantasy", "Mystery", "Romance", "Fiction"],
+    "Author": ["Author_A", "Author_B", "Author_C", "Author_D", "Author_E", "Author_F", 
+               "Author_G", "Author_H", "Author_I", "Author_J"],
+    "Popularity": [120, 85, 150, 90, 200, 75, 180, 110, 95, 140],
+    "Borrowing_Frequency": [10.5, 7.3, 12.1, 8.2, 15.0, 6.5, 14.2, 9.5, 7.8, 11.0],
+    "Publication_Year": [2005, 2010, 2015, 2008, 2018, 2003, 2020, 2012, 2000, 2016],
+    "Membership_Type": ["Premium", "Basic", "Premium", "Premium", "Basic", "Standard",
+                        "Premium", "Basic", "Standard", "Premium"]
+}
+df = pd.DataFrame(data)
+print("Dataset:\n", df)
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+encoder = OneHotEncoder(sparse=False, drop='first')
+encoded_features = encoder.fit_transform(df[['Genre', 'Membership_Type']])
+encoded_df = pd.DataFrame(encoded_features, columns=encoder.get_feature_names_out(['Genre', 'Membership_Type']))
+numerical_features = df[['Popularity', 'Borrowing_Frequency', 'Publication_Year']]
+X = pd.concat([numerical_features, encoded_df], axis=1)
+numerical_features = df[['Popularity', 'Borrowing_Frequency', 'Publication_Year']]
+X = pd.concat([numerical_features, encoded_df], axis=1)
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+inertia = []
+k_range = range(2, 11)
+for k in k_range:
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans.fit(X_scaled)
+    inertia.append(kmeans.inertia_)
+plt.figure(figsize=(8, 5))
+plt.plot(k_range, inertia, marker='o')
+plt.title("Elbow Method for Optimal K")
+plt.xlabel("Number of Clusters (k)")
+plt.ylabel("Inertia")
+plt.show()
+optimal_k = 4  
+kmeans = KMeans(n_clusters=optimal_k, random_state=42)
+df['KMeans_Cluster'] = kmeans.fit_predict(X_scaled)
+silhouette_kmeans = silhouette_score(X_scaled, df['KMeans_Cluster'])
+davies_bouldin_kmeans = davies_bouldin_score(X_scaled, df['KMeans_Cluster'])
+print(f"K-Means Silhouette Score: {silhouette_kmeans:.3f}")
+print(f"K-Means Davies-Bouldin Index: {davies_bouldin_kmeans:.3f}")
+linkage_matrix = linkage(X_scaled, method='ward')
+plt.figure(figsize=(10, 7))
+dendrogram(linkage_matrix)
+plt.title("Hierarchical Clustering Dendrogram")
+plt.xlabel("Samples")
+plt.ylabel("Distance")
+plt.show()
+df['Hierarchical_Cluster'] = fcluster(linkage_matrix, t=5, criterion='distance')
+dbscan = DBSCAN(eps=1.0, min_samples=2) 
+df['DBSCAN_Cluster'] = dbscan.fit_predict(X_scaled)
+dbscan_clusters = df[df['DBSCAN_Cluster'] != -1]['DBSCAN_Cluster']
+if len(dbscan_clusters.unique()) > 1:
+    silhouette_dbscan = silhouette_score(X_scaled[df['DBSCAN_Cluster'] != -1], dbscan_clusters)
+    davies_bouldin_dbscan = davies_bouldin_score(X_scaled[df['DBSCAN_Cluster'] != -1], dbscan_clusters)
+    print(f"DBSCAN Silhouette Score: {silhouette_dbscan:.3f}")
+    print(f"DBSCAN Davies-Bouldin Index: {davies_bouldin_dbscan:.3f}")
+else:
+    print("DBSCAN did not identify enough clusters for evaluation.")
+plt.figure(figsize=(8, 5))
+sns.scatterplot(
+    x='Borrowing_Frequency', y='Popularity', hue='KMeans_Cluster', data=df, palette='viridis'
+)
+plt.title("K-Means Clustering Results")
+plt.xlabel("Borrowing Frequency")
+plt.ylabel("Popularity")
+plt.legend(title="Cluster")
+plt.show()
+df.to_csv("clustered_library_data.csv", index=False)
+print("Clustered data saved as 'clustered_library_data.csv'.")
